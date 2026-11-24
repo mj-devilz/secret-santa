@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en-IE">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- connect-src falls back to 'none': this page cannot send names or numbers anywhere. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<meta property="og:title" content="Your Secret Santa envelope">
+<meta property="og:description" content="Sealed. Open it to see who you're buying for.">
+<title>Secret Santa</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23a3262a'/%3E%3Cpath d='M16 6l2.6 6.8 7.2.4-5.600 4.600 1.900 7L16 20.900 9.900 24.800l1.900-7-5.600-4.600 7.200-.4z' fill='%23f3e9d8'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#f1ebdf; --paper:#fbf8f1; --ink:#23291f; --soft:#5f6558; --line:#d8cfbd;
+  --pine:#24513c; --pine-ink:#fff; --wax:#a3262a; --wax-dark:#7b1a1e; --warn:#8a2a12;
+  --flap:#e6dcc8; --field:#fff; color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#141b17; --paper:#1d2621; --ink:#eee8da; --soft:#a5ac9f; --line:#37433b;
+  --pine:#8cc5a4; --pine-ink:#10201a; --wax:#b8343a; --wax-dark:#86252a; --warn:#f0a48c;
+  --flap:#26322b; --field:#161e1a; color-scheme:dark;
+}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:720px;margin:0 auto;padding:40px 16px 80px}
+h1,h2,.name{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;font-weight:600;line-height:1.15;text-wrap:balance}
+h1{font-size:clamp(2rem,7vw,3rem);margin:0 0 8px}
+h2{font-size:1.35rem;margin:36px 0 10px}
+p{margin:0 0 12px}
+.soft{color:var(--soft)}
+label{display:block;font-size:.85rem;color:var(--soft)}
+input,select,textarea{width:100%;margin-top:3px;padding:10px 11px;font:inherit;font-size:16px;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:7px}
+button,.btn{font:inherit;font-weight:600;min-height:44px;padding:9px 16px;border-radius:7px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+.primary{background:var(--pine);border-color:var(--pine);color:var(--pine-ink)}
+:focus-visible{outline:3px solid var(--pine);outline-offset:2px}
+.person{display:grid;grid-template-columns:1fr 1fr 1fr 44px;gap:10px;align-items:end;padding:12px 0;border-top:1px solid var(--line)}
+.person button{padding:0}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.error{color:var(--warn);font-weight:600;white-space:pre-line;margin-top:14px}
+.notice{border:1px solid var(--warn);border-radius:8px;padding:12px 14px;margin:18px 0}
+.row{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:12px}
+.row-head{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.row-head .name{font-size:1.25rem;overflow-wrap:anywhere}
+.row-head label{display:flex;align-items:center;gap:8px;min-height:44px;white-space:nowrap}
+.row-head input{width:20px;height:20px;margin:0}
+.row .actions{margin-top:10px}
+.row.sent{opacity:.65}
+@media (max-width:600px){
+  .person{grid-template-columns:1fr 44px}
+  .person label{grid-column:1/-1}
+  .person label:first-child{grid-column:1}
+  .person button{grid-column:2;grid-row:1}
+}
+/* Envelope */
+.reveal{min-height:100vh;min-height:100dvh;display:grid;place-content:center;justify-items:center;text-align:center;padding:24px 16px}
+.reveal h1{margin-bottom:6px}
+.env{position:relative;width:min(420px,88vw);aspect-ratio:1.5;margin:28px 0;background:var(--paper);border:1px solid var(--line);border-radius:10px;display:grid;place-items:center;overflow:hidden;box-shadow:0 14px 34px rgb(0 0 0/.14)}
+.flap{position:absolute;inset:0 0 auto;height:58%;background:var(--flap);clip-path:polygon(0 0,100% 0,50% 100%);transform-origin:top;transition:transform .5s ease-in}
+.seal{position:absolute;left:50%;top:56%;width:104px;height:104px;margin:-52px 0 0 -52px;padding:0;border:0;border-radius:49% 51% 47% 53%/52% 48% 52% 48%;background:var(--wax);color:#f8ebdc;box-shadow:inset 0 0 0 9px var(--wax-dark),0 3px 8px rgb(0 0 0/.3);transition:transform .35s,opacity .35s}
+.letter{opacity:0;transform:translateY(14px);transition:opacity .5s .4s,transform .5s .4s;padding:16px;max-width:100%}
+.letter .name{font-size:clamp(1.9rem,9vw,2.8rem);overflow-wrap:anywhere}
+.open .flap{transform:scaleY(0)}
+.open .seal{opacity:0;transform:scale(1.25);pointer-events:none}
+.open .letter{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<main id="setup" hidden>
+  <h1>Secret Santa</h1>
+  <p class="soft">Add everyone and pair up partners. The draw happens on this device, and you never see it.</p>
+  <p class="notice" data-local hidden></p>
+  <h2>Who's in</h2>
+  <div id="people"></div>
+  <div class="actions"><button type="button" id="add">Add person</button></div>
+  <h2>Details</h2>
+  <label>Which one is you? (links for anyone else won't open on this device)<select id="me"></select></label>
+  <p></p>
+  <label>Note to include in every message (optional)<input id="note" maxlength="120" placeholder="Budget €30. Swap on 20 December."></label>
+  <div class="error" id="error" role="alert"></div>
+  <div class="actions"><button type="button" class="primary" id="draw">Draw names</button></div>
+</main>
+
+<main id="send" hidden>
+  <h1>The draw is done</h1>
+  <p class="soft">Each link is sealed. Text one to each person, including yourself. <span id="progress" role="status"></span></p>
+  <p class="notice" data-local hidden></p>
+  <div id="links"></div>
+  <h2>Need to start over?</h2>
+  <p class="soft">Links already sent keep working, so after a new draw everyone needs a new link and must ignore the old one.</p>
+  <div class="actions">
+    <button type="button" id="redo">Edit and draw again</button>
+    <button type="button" id="wipe">Erase everything on this device</button>
+  </div>
+</main>
+
+<section id="reveal" class="reveal" hidden>
+  <h1 id="r-title"></h1>
+  <p class="soft" id="r-sub"></p>
+  <div class="env" id="env" hidden>
+    <div class="letter" id="letter" aria-live="polite"></div>
+    <div class="flap"></div>
+    <button type="button" class="seal" id="seal">Open</button>
+  </div>
+</section>
+
+<script>
+"use strict";
+/* ---------- core (no DOM) ---------- */
+const enc = new TextEncoder(), dec = new TextDecoder("utf-8", {fatal: true});
+const MAX_NAME_BYTES = 30, PLAIN_BYTES = 64;
+
+function randomInt(n) {                       // unbiased 0..n-1
+  const limit = Math.floor(2 ** 32 / n) * n, buf = new Uint32Array(1);
+  do crypto.getRandomValues(buf); while (buf[0] >= limit);
+  return buf[0] % n;
+}
+// people: [{id, partner}]. Returns the receiver index for each giver, or null if impossible.
+// Whole-shuffle retry keeps every valid draw equally likely.
+function drawNames(people) {
+  const n = people.length;
+  for (let attempt = 0; attempt < 20000; attempt++) {
+    const to = people.map((_, i) => i);
+    for (let i = n - 1; i > 0; i--) {
+      const j = randomInt(i + 1);
+      [to[i], to[j]] = [to[j], to[i]];
+    }
+    if (to.every((r, g) => r !== g && people[g].partner !== people[r].id)) return to;
+  }
+  return null;
+}
+function toB64(bytes) {
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function fromB64(s) {
+  return Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+}
+// Fixed-size plaintext, so a link's length says nothing about the name inside.
+async function sealPair(giver, receiver) {
+  const plain = new Uint8Array(PLAIN_BYTES);
+  plain.set(enc.encode(giver + "\0" + receiver));
+  const raw = crypto.getRandomValues(new Uint8Array(16));
+  const key = await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt"]);
+  // Fixed IV is safe here: every key encrypts exactly one message.
+  const ct = new Uint8Array(await crypto.subtle.encrypt({name: "AES-GCM", iv: new Uint8Array(12)}, key, plain));
+  return toB64(new Uint8Array([...raw, ...ct]));
+}
+async function openPair(token) {
+  const all = fromB64(token);
+  const key = await crypto.subtle.importKey("raw", all.slice(0, 16), "AES-GCM", false, ["decrypt"]);
+  const plain = await crypto.subtle.decrypt({name: "AES-GCM", iv: new Uint8Array(12)}, key, all.slice(16));
+  const [giver, receiver] = dec.decode(plain).split("\0");
+  if (!giver || !receiver) throw new Error("bad link");
+  return {giver, receiver};
+}
+// Irish numbers by default; anything starting + or 00 is treated as international.
+function normalisePhone(input) {
+  let s = input.replace(/\(0\)/g, "").replace(/[\s().-]/g, "");
+  if (!s) return "";
+  if (s.startsWith("+")) s = s.slice(1);
+  else if (s.startsWith("00")) s = s.slice(2);
+  else if (/^08\d{8}$/.test(s)) s = "353" + s.slice(1);
+  else if (/^8\d{8}$/.test(s)) s = "353" + s;
+  else if (!/^3538\d{8}$/.test(s)) return null;
+  if (s.startsWith("3530")) s = "353" + s.slice(4);
+  if (s.startsWith("353")) return /^3538\d{8}$/.test(s) ? s : null;
+  return /^[1-9]\d{7,14}$/.test(s) ? s : null;
+}
+
+/* ---------- state ---------- */
+const $ = id => document.getElementById(id);
+const KEY = "secret-santa-v1";
+const newPerson = () => ({id: toB64(crypto.getRandomValues(new Uint8Array(6))), name: "", phone: "", partner: ""});
+const blank = () => ({people: Array.from({length: 10}, newPerson), me: "", note: "", links: null, sent: {}});
+function load() {
+  try { return JSON.parse(localStorage.getItem(KEY)) || blank(); } catch { return blank(); }
+}
+let state = load();
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
+const byId = id => state.people.find(p => p.id === id);
+function setPartner(p, id) {                  // keep partners two-way
+  for (const o of state.people) if (o.partner === p.id) o.partner = "";
+  p.partner = id;
+  if (id) {
+    for (const o of state.people) if (o !== p && o.partner === id) o.partner = "";
+    byId(id).partner = p.id;
+  }
+}
+function el(tag, props = {}, ...kids) {
+  const e = Object.assign(document.createElement(tag), props);
+  e.append(...kids);
+  return e;
+}
+
+/* ---------- set up ---------- */
+function options(select, chosen, first, people) {
+  select.replaceChildren(el("option", {value: "", textContent: first}),
+    ...people.filter(p => p.name.trim()).map(p => el("option", {value: p.id, textContent: p.name.trim()})));
+  select.value = chosen;
+}
+const partnerSelects = new Map();
+function refreshSelects() {
+  for (const [p, s] of partnerSelects) options(s, p.partner, "None", state.people.filter(o => o !== p));
+  options($("me"), state.me, "I'm not taking part", state.people);
+}
+function renderSetup() {
+  partnerSelects.clear();
+  $("people").replaceChildren(...state.people.map((p, i) => {
+    const name = el("input", {value: p.name, maxLength: 30, autocomplete: "off"});
+    name.oninput = () => { p.name = name.value; refreshSelects(); save(); };
+    const phone = el("input", {value: p.phone, type: "tel", placeholder: "087 123 4567", autocomplete: "off"});
+    phone.oninput = () => { p.phone = phone.value; save(); };
+    const partner = el("select");
+    partner.onchange = () => { setPartner(p, partner.value); refreshSelects(); save(); };
+    partnerSelects.set(p, partner);
+    const del = el("button", {type: "button", textContent: "✕"});
+    del.setAttribute("aria-label", "Remove person " + (i + 1));
+    del.onclick = () => {
+      setPartner(p, "");
+      if (state.me === p.id) state.me = "";
+      state.people = state.people.filter(o => o !== p);
+      save(); renderSetup();
+    };
+    return el("div", {className: "person"}, el("label", {}, "Name", name),
+      el("label", {}, "Mobile", phone), el("label", {}, "Partner", partner), del);
+  }));
+  $("note").value = state.note;
+  refreshSelects();
+}
+function validate() {
+  const errors = [], names = new Set(), phones = new Set();
+  const used = state.people.filter(p => p.name.trim() || p.phone.trim());
+  if (used.length < 3) errors.push("Add at least 3 people.");
+  for (const p of used) {
+    const n = p.name.trim(), k = n.toLocaleLowerCase(), ph = normalisePhone(p.phone);
+    if (!n) { errors.push(`Add a name for ${p.phone}.`); continue; }
+    if (enc.encode(n).length > MAX_NAME_BYTES) errors.push(`${n}: shorten the name.`);
+    if (names.has(k)) errors.push(`Two people are called ${n}. Add an initial.`);
+    names.add(k);
+    if (ph === null) errors.push(`${n}: that mobile number doesn't look right.`);
+    if (ph && phones.has(ph)) errors.push(`${n}: that mobile number is already used by someone else.`);
+    if (ph) phones.add(ph);
+  }
+  return {errors, used};
+}
+$("add").onclick = () => { state.people.push(newPerson()); save(); renderSetup(); };
+$("me").onchange = () => { state.me = $("me").value; save(); };
+$("note").oninput = () => { state.note = $("note").value; save(); };
+$("draw").onclick = async () => {
+  $("draw").disabled = true;
+  try {
+    const {errors, used} = validate();
+    let to = null;
+    if (!errors.length) {
+      to = drawNames(used);
+      if (!to) errors.push("No draw is possible with these partners. Add more people.");
+    }
+    $("error").textContent = errors.join("\n");
+    if (errors.length) return;
+    const links = {};
+    for (let i = 0; i < used.length; i++)
+      links[used[i].id] = await sealPair(used[i].name.trim(), used[to[i]].name.trim());
+    used.forEach(p => { p.name = p.name.trim(); });
+    // Only sealed links are stored, never the plain list of pairs.
+    Object.assign(state, {people: used, links, sent: {}});
+    save(); route(); scrollTo(0, 0);
+  } catch {
+    $("error").textContent = "This browser can't seal the links. Open the page over https and try again.";
+  } finally { $("draw").disabled = false; }
+};
+
+/* ---------- send ---------- */
+const linkFor = p => location.href.split("#")[0] + "#" + state.links[p.id];
+function messageFor(p) {
+  const note = state.note.trim();
+  return `Hi ${p.name}, you're in Secret Santa! Open this to see who you're buying for. It's only for you: ${linkFor(p)}` + (note ? `\n\n${note}` : "");
+}
+function renderSend() {
+  const progress = () => {
+    $("progress").textContent = `${state.people.filter(p => state.sent[p.id]).length} of ${state.people.length} sent.`;
+  };
+  $("links").replaceChildren(...state.people.map(p => {
+    const row = el("div", {className: "row"});
+    const tick = el("input", {type: "checkbox", checked: !!state.sent[p.id]});
+    const mark = v => { state.sent[p.id] = v; tick.checked = v; row.classList.toggle("sent", v); save(); progress(); };
+    tick.onchange = () => mark(tick.checked);
+    const actions = el("div", {className: "actions"});
+    const num = normalisePhone(p.phone);
+    if (num) {
+      const body = encodeURIComponent(messageFor(p));
+      const sms = el("a", {className: "btn primary", href: `sms:+${num}?&body=${body}`, textContent: `Text ${p.name}`});
+      const wa = el("a", {className: "btn", href: `https://wa.me/${num}?text=${body}`, target: "_blank", rel: "noopener noreferrer", textContent: "WhatsApp"});
+      sms.onclick = wa.onclick = () => mark(true);
+      actions.append(sms, wa);
+    }
+    const copy = el("button", {type: "button", textContent: "Copy message"});
+    copy.onclick = async () => {
+      try { await navigator.clipboard.writeText(messageFor(p)); copy.textContent = "Copied"; mark(true); }
+      catch { copy.textContent = "Couldn't copy"; }
+    };
+    actions.append(copy);
+    row.append(el("div", {className: "row-head"},
+      el("span", {className: "name", textContent: p.name + (p.id === state.me ? " (you)" : "")}),
+      el("label", {}, tick, "Sent")), actions);
+    row.classList.toggle("sent", tick.checked);
+    return row;
+  }));
+  progress();
+}
+$("redo").onclick = () => {
+  if (!confirm("Discard this draw? Anyone you've already messaged will need a new link.")) return;
+  state.links = null; state.sent = {}; save(); route(); scrollTo(0, 0);
+};
+$("wipe").onclick = () => {
+  if (!confirm("Erase all names, numbers and links from this device? You won't be able to resend a link.")) return;
+  try { localStorage.removeItem(KEY); } catch {}
+  state = blank(); route(); scrollTo(0, 0);
+};
+
+/* ---------- reveal ---------- */
+async function renderReveal(token) {
+  $("env").hidden = true; $("env").classList.remove("open"); $("letter").replaceChildren(); $("r-sub").textContent = "";
+  let pair;
+  try { pair = await openPair(token); }
+  catch {
+    $("r-title").textContent = "This link is incomplete";
+    $("r-sub").textContent = "Ask your organiser to send it again.";
+    return;
+  }
+  // Organiser guard: this device ran the draw, so only the organiser's own envelope opens here.
+  const me = state.links && byId(state.me);
+  if (state.links && (!me || me.name !== pair.giver)) {
+    $("r-title").textContent = "No peeking";
+    $("r-sub").textContent = `This envelope is ${pair.giver}'s, and this device ran the draw.`;
+    return;
+  }
+  $("r-title").textContent = `For ${pair.giver}`;
+  $("r-sub").textContent = `Not ${pair.giver}? Close this page.`;
+  $("env").hidden = false;
+  $("seal").hidden = false;
+  $("seal").onclick = () => {
+    $("letter").replaceChildren(el("div", {className: "soft", textContent: "You're buying for"}),
+      el("div", {className: "name", textContent: pair.receiver}));
+    $("env").classList.add("open");
+    $("seal").disabled = true;
+    $("r-sub").textContent = "Keep it secret.";
+  };
+  $("seal").disabled = false;
+}
+
+function route() {
+  const token = location.hash.slice(1);
+  $("setup").hidden = !!token || !!state.links;
+  $("send").hidden = !!token || !state.links;
+  $("reveal").hidden = !token;
+  if (token) renderReveal(token);
+  else if (state.links) renderSend();
+  else renderSetup();
+}
+const local = location.protocol === "file:" || ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+for (const n of document.querySelectorAll("[data-local]")) {
+  n.hidden = !local;
+  n.textContent = "This copy is only on your computer, so links made here won't open for anyone else. Put the page online first, then do the real draw there.";
+}
+addEventListener("hashchange", () => { state = load(); route(); });
+route();
+</script>
+</body>
+</html>
