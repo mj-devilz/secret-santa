@@ -87,7 +87,7 @@ button,.btn{font:inherit;font-weight:600;min-height:44px;padding:9px 16px;border
 
 <main id="send" hidden>
   <h1>The draw is done</h1>
-  <p class="soft">Each link is sealed. Text one to each person, including yourself. <span id="progress" role="status"></span></p>
+  <p class="soft">Each link is sealed. Send one to each person, including yourself. <span id="progress" role="status"></span></p>
   <p class="notice" data-local hidden></p>
   <div id="links"></div>
   <h2>Need to start over?</h2>
@@ -140,7 +140,14 @@ function fromB64(s) {
   return Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
 }
 // Fixed-size plaintext, so a link's length says nothing about the name inside.
+// Letters and digits only: chat apps can drop a trailing "-" or "_" when they turn text into a link.
 async function sealPair(giver, receiver) {
+  for (;;) {
+    const token = await sealOnce(giver, receiver);
+    if (/^[A-Za-z0-9]+$/.test(token)) return token;
+  }
+}
+async function sealOnce(giver, receiver) {
   const plain = new Uint8Array(PLAIN_BYTES);
   plain.set(enc.encode(giver + "\0" + receiver));
   const raw = crypto.getRandomValues(new Uint8Array(16));
@@ -277,7 +284,12 @@ $("draw").onclick = async () => {
 const linkFor = p => location.href.split("#")[0] + "#" + state.links[p.id];
 function messageFor(p) {
   const note = state.note.trim();
-  return `Hi ${p.name}, you're in Secret Santa! Open this to see who you're buying for. It's only for you: ${linkFor(p)}` + (note ? `\n\n${note}` : "");
+  return [
+    `Agent ${p.name}, you're on a secret mission, should you choose to accept it... though you already have, so best of luck.`,
+    `Your Secret Santa target, for your eyes only: ${linkFor(p)}`,
+    note && `Mission notes: ${note}`,
+    "This text will self-destruct in 10 seconds... actually I can't do that, but you get the drift."
+  ].filter(Boolean).join("\n\n");
 }
 function renderSend() {
   const progress = () => {
@@ -292,10 +304,10 @@ function renderSend() {
     const num = normalisePhone(p.phone);
     if (num) {
       const body = encodeURIComponent(messageFor(p));
-      const sms = el("a", {className: "btn primary", href: `sms:+${num}?&body=${body}`, textContent: `Text ${p.name}`});
-      const wa = el("a", {className: "btn", href: `https://wa.me/${num}?text=${body}`, target: "_blank", rel: "noopener noreferrer", textContent: "WhatsApp"});
+      const sms = el("a", {className: "btn", href: `sms:+${num}?&body=${body}`, textContent: "Text"});
+      const wa = el("a", {className: "btn primary", href: `https://wa.me/${num}?text=${body}`, target: "_blank", rel: "noopener noreferrer", textContent: `WhatsApp ${p.name}`});
       sms.onclick = wa.onclick = () => mark(true);
-      actions.append(sms, wa);
+      actions.append(wa, sms);
     }
     const copy = el("button", {type: "button", textContent: "Copy message"});
     copy.onclick = async () => {
